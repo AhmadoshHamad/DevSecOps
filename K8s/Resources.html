@@ -1,0 +1,337 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; padding: 4px 0 16px; }
+.card {
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.card:hover { border-color: var(--color-border-primary); background: var(--color-background-secondary); }
+.card.active { border-color: var(--color-border-info); background: var(--color-background-info); }
+.card-icon { font-size: 20px; margin-bottom: 8px; }
+.card-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; }
+.card.active .card-title { color: var(--color-text-info); }
+.card-sub { font-size: 12px; color: var(--color-text-secondary); }
+.card.active .card-sub { color: var(--color-text-info); }
+.detail {
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 20px 22px;
+  margin-bottom: 8px;
+}
+.detail-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.detail-title { font-size: 16px; font-weight: 500; color: var(--color-text-primary); }
+.detail-desc { font-size: 14px; color: var(--color-text-secondary); line-height: 1.6; margin-bottom: 14px; }
+.section-label { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tag {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-secondary);
+  color: var(--color-text-secondary);
+}
+.yaml {
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+}
+.kw { color: var(--color-text-info); }
+.val { color: var(--color-text-success); }
+.ask-btn {
+  margin-top: 14px;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.ask-btn:hover { background: var(--color-background-primary); }
+</style>
+
+<h2 class="sr-only">Kubernetes resource types reference — click a card to see details and example YAML</h2>
+
+<div class="grid" id="cards"></div>
+<div class="detail" id="detail"></div>
+
+<script>
+const resources = [
+  {
+    icon: "ti-box",
+    title: "Pod",
+    sub: "Smallest unit",
+    desc: "The atomic unit of K8s. A Pod wraps one or more containers that share the same network namespace (same IP address and port space) and storage volumes. Pods are ephemeral — they're created and destroyed, not migrated.",
+    types: ["Single-container", "Multi-container (sidecar)", "Init containers"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">v1</span>
+<span class="kw">kind:</span>       <span class="val">Pod</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span>     <span class="val">my-pod</span>
+<span class="kw">spec:</span>
+  <span class="kw">containers:</span>
+  - <span class="kw">name:</span>  <span class="val">nginx</span>
+    <span class="kw">image:</span> <span class="val">nginx:1.25</span>
+    <span class="kw">ports:</span>
+    - <span class="kw">containerPort:</span> <span class="val">80</span>`,
+    ask: "Tell me more about Pod lifecycle and restart policies"
+  },
+  {
+    icon: "ti-stack",
+    title: "Deployment",
+    sub: "Manages ReplicaSets",
+    desc: "Declaratively manages a set of identical Pods via a ReplicaSet. You describe desired state (image, replicas, update strategy) and the Deployment controller reconciles it. Supports rolling updates and rollbacks.",
+    types: ["RollingUpdate (default)", "Recreate"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">apps/v1</span>
+<span class="kw">kind:</span>       <span class="val">Deployment</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">my-app</span>
+<span class="kw">spec:</span>
+  <span class="kw">replicas:</span> <span class="val">3</span>
+  <span class="kw">selector:</span>
+    <span class="kw">matchLabels:</span>
+      <span class="kw">app:</span> <span class="val">my-app</span>
+  <span class="kw">template:</span>
+    <span class="kw">metadata:</span>
+      <span class="kw">labels:</span>
+        <span class="kw">app:</span> <span class="val">my-app</span>
+    <span class="kw">spec:</span>
+      <span class="kw">containers:</span>
+      - <span class="kw">name:</span>  <span class="val">my-app</span>
+        <span class="kw">image:</span> <span class="val">my-app:v2</span>`,
+    ask: "How do Deployment rolling updates work?"
+  },
+  {
+    icon: "ti-network",
+    title: "Service",
+    sub: "Stable network endpoint",
+    desc: "Gives a stable IP and DNS name to a dynamic set of Pods. Uses label selectors to route traffic. Without a Service, Pod IPs change every restart — Services abstract that away.",
+    types: ["ClusterIP (internal)", "NodePort (external via port)", "LoadBalancer (cloud LB)", "ExternalName (DNS alias)"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">v1</span>
+<span class="kw">kind:</span>       <span class="val">Service</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">my-svc</span>
+<span class="kw">spec:</span>
+  <span class="kw">selector:</span>
+    <span class="kw">app:</span> <span class="val">my-app</span>
+  <span class="kw">ports:</span>
+  - <span class="kw">port:</span>       <span class="val">80</span>
+    <span class="kw">targetPort:</span> <span class="val">8080</span>
+  <span class="kw">type:</span> <span class="val">ClusterIP</span>`,
+    ask: "What's the difference between ClusterIP, NodePort, and LoadBalancer?"
+  },
+  {
+    icon: "ti-folder",
+    title: "Namespace",
+    sub: "Logical isolation",
+    desc: "A virtual cluster inside a cluster. Namespaces scope resource names, apply resource quotas, and control RBAC. Default namespaces: default, kube-system, kube-public, kube-node-lease.",
+    types: ["default", "kube-system", "Custom (e.g. prod / staging)"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">v1</span>
+<span class="kw">kind:</span>       <span class="val">Namespace</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">production</span>
+  <span class="kw">labels:</span>
+    <span class="kw">env:</span> <span class="val">prod</span>`,
+    ask: "How do Namespaces interact with RBAC and NetworkPolicies?"
+  },
+  {
+    icon: "ti-database",
+    title: "ConfigMap & Secret",
+    sub: "Configuration injection",
+    desc: "ConfigMaps store non-sensitive config (env vars, config files). Secrets store sensitive data (passwords, tokens) as base64-encoded values. Both can be injected as env vars or mounted as files into Pods.",
+    types: ["ConfigMap", "Secret (Opaque)", "Secret (docker-registry)", "Secret (tls)"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">v1</span>
+<span class="kw">kind:</span>       <span class="val">ConfigMap</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">app-config</span>
+<span class="kw">data:</span>
+  <span class="kw">LOG_LEVEL:</span>  <span class="val">info</span>
+  <span class="kw">MAX_CONN:</span>   <span class="val">"100"</span>`,
+    ask: "How do I mount a Secret as a volume in a Pod?"
+  },
+  {
+    icon: "ti-server",
+    title: "StatefulSet",
+    sub: "Ordered, sticky Pods",
+    desc: "Like a Deployment but for stateful apps (databases, queues). Pods get stable network IDs (pod-0, pod-1…) and stable persistent storage. Ordered startup/shutdown guarantees.",
+    types: ["Databases (Postgres, MySQL)", "Message queues (Kafka, RabbitMQ)", "Distributed stores (ZooKeeper)"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">apps/v1</span>
+<span class="kw">kind:</span>       <span class="val">StatefulSet</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">postgres</span>
+<span class="kw">spec:</span>
+  <span class="kw">serviceName:</span> <span class="val">"postgres"</span>
+  <span class="kw">replicas:</span>    <span class="val">3</span>
+  <span class="kw">selector:</span>
+    <span class="kw">matchLabels:</span>
+      <span class="kw">app:</span> <span class="val">postgres</span>`,
+    ask: "When should I use StatefulSet vs Deployment?"
+  },
+  {
+    icon: "ti-device-laptop",
+    title: "DaemonSet",
+    sub: "One Pod per node",
+    desc: "Ensures exactly one Pod runs on every (or selected) node. Used for node-level infra: log collectors, monitoring agents, CNI plugins. Automatically adds Pods when new nodes join.",
+    types: ["Log shippers (Fluentd, Filebeat)", "Monitoring agents (Prometheus node-exporter)", "Network plugins (Calico, Cilium)"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">apps/v1</span>
+<span class="kw">kind:</span>       <span class="val">DaemonSet</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">log-agent</span>
+<span class="kw">spec:</span>
+  <span class="kw">selector:</span>
+    <span class="kw">matchLabels:</span>
+      <span class="kw">name:</span> <span class="val">log-agent</span>`,
+    ask: "How does a DaemonSet handle node selectors and tolerations?"
+  },
+  {
+    icon: "ti-clock",
+    title: "Job & CronJob",
+    sub: "Run-to-completion",
+    desc: "A Job runs one or more Pods until they complete successfully. A CronJob schedules Jobs on a cron expression. Good for batch processing, database migrations, reports.",
+    types: ["Job (one-shot)", "CronJob (scheduled)", "Parallel jobs (completions + parallelism)"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">batch/v1</span>
+<span class="kw">kind:</span>       <span class="val">CronJob</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">db-backup</span>
+<span class="kw">spec:</span>
+  <span class="kw">schedule:</span> <span class="val">"0 2 * * *"</span>
+  <span class="kw">jobTemplate:</span>
+    <span class="kw">spec:</span>
+      <span class="kw">template:</span>
+        <span class="kw">spec:</span>
+          <span class="kw">restartPolicy:</span> <span class="val">OnFailure</span>`,
+    ask: "How do I handle failed Jobs and set retry limits?"
+  },
+  {
+    icon: "ti-topology-ring",
+    title: "Ingress",
+    sub: "HTTP routing",
+    desc: "Routes external HTTP/HTTPS traffic to Services by hostname and path rules. Requires an Ingress Controller (nginx, Traefik, AWS ALB…) to function. Handles TLS termination and virtual hosting.",
+    types: ["nginx", "Traefik", "AWS ALB", "GKE", "Istio Gateway"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">networking.k8s.io/v1</span>
+<span class="kw">kind:</span>       <span class="val">Ingress</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">my-ingress</span>
+<span class="kw">spec:</span>
+  <span class="kw">rules:</span>
+  - <span class="kw">host:</span> <span class="val">app.example.com</span>
+    <span class="kw">http:</span>
+      <span class="kw">paths:</span>
+      - <span class="kw">path:</span>     <span class="val">/api</span>
+        <span class="kw">pathType:</span> <span class="val">Prefix</span>
+        <span class="kw">backend:</span>
+          <span class="kw">service:</span>
+            <span class="kw">name:</span> <span class="val">api-svc</span>
+            <span class="kw">port:</span>
+              <span class="kw">number:</span> <span class="val">80</span>`,
+    ask: "How do I set up TLS on an Ingress?"
+  },
+  {
+    icon: "ti-cylinder",
+    title: "PersistentVolume",
+    sub: "Durable storage",
+    desc: "PersistentVolumes (PV) are cluster-level storage resources. PersistentVolumeClaims (PVC) are user requests for storage. StorageClasses define how PVs are dynamically provisioned.",
+    types: ["PersistentVolume (PV)", "PersistentVolumeClaim (PVC)", "StorageClass", "VolumeSnapshot"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">v1</span>
+<span class="kw">kind:</span>       <span class="val">PersistentVolumeClaim</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">my-pvc</span>
+<span class="kw">spec:</span>
+  <span class="kw">accessModes:</span>
+    - <span class="val">ReadWriteOnce</span>
+  <span class="kw">resources:</span>
+    <span class="kw">requests:</span>
+      <span class="kw">storage:</span> <span class="val">10Gi</span>
+  <span class="kw">storageClassName:</span> <span class="val">fast-ssd</span>`,
+    ask: "What are the access modes for PersistentVolumes?"
+  },
+  {
+    icon: "ti-shield",
+    title: "RBAC",
+    sub: "Access control",
+    desc: "Role-Based Access Control. Roles (namespace-scoped) and ClusterRoles (cluster-wide) define permissions. RoleBindings attach them to users, groups, or ServiceAccounts.",
+    types: ["Role", "ClusterRole", "RoleBinding", "ClusterRoleBinding", "ServiceAccount"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">rbac.authorization.k8s.io/v1</span>
+<span class="kw">kind:</span>       <span class="val">Role</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span>      <span class="val">pod-reader</span>
+  <span class="kw">namespace:</span> <span class="val">default</span>
+<span class="kw">rules:</span>
+- <span class="kw">apiGroups:</span> <span class="val">[""]</span>
+  <span class="kw">resources:</span> <span class="val">["pods"]</span>
+  <span class="kw">verbs:</span>     <span class="val">["get","list","watch"]</span>`,
+    ask: "How do I bind a Role to a ServiceAccount?"
+  },
+  {
+    icon: "ti-adjustments-horizontal",
+    title: "HPA / VPA",
+    sub: "Autoscaling",
+    desc: "HorizontalPodAutoscaler scales the number of Pod replicas based on CPU, memory, or custom metrics. VerticalPodAutoscaler adjusts resource requests/limits per Pod. KEDA extends HPA with event-driven scaling.",
+    types: ["HPA (replica count)", "VPA (resource sizing)", "KEDA (event-driven)", "Cluster Autoscaler (nodes)"],
+    yaml: `<span class="kw">apiVersion:</span> <span class="val">autoscaling/v2</span>
+<span class="kw">kind:</span>       <span class="val">HorizontalPodAutoscaler</span>
+<span class="kw">metadata:</span>
+  <span class="kw">name:</span> <span class="val">my-app-hpa</span>
+<span class="kw">spec:</span>
+  <span class="kw">scaleTargetRef:</span>
+    <span class="kw">kind:</span> <span class="val">Deployment</span>
+    <span class="kw">name:</span> <span class="val">my-app</span>
+  <span class="kw">minReplicas:</span> <span class="val">2</span>
+  <span class="kw">maxReplicas:</span> <span class="val">10</span>
+  <span class="kw">metrics:</span>
+  - <span class="kw">type:</span> <span class="val">Resource</span>
+    <span class="kw">resource:</span>
+      <span class="kw">name:</span>               <span class="val">cpu</span>
+      <span class="kw">target:</span>
+        <span class="kw">type:</span>               <span class="val">Utilization</span>
+        <span class="kw">averageUtilization:</span> <span class="val">70</span>`,
+    ask: "How does HPA decide when to scale up or down?"
+  }
+];
+
+const cardsEl = document.getElementById('cards');
+const detailEl = document.getElementById('detail');
+let active = 0;
+
+function render(i) {
+  active = i;
+  const r = resources[i];
+  cardsEl.querySelectorAll('.card').forEach((c, j) => c.classList.toggle('active', j === i));
+  detailEl.innerHTML = `
+    <div class="detail-header">
+      <i class="ti ${r.icon}" style="font-size:22px;color:var(--color-text-info)" aria-hidden="true"></i>
+      <span class="detail-title">${r.title}</span>
+    </div>
+    <p class="detail-desc">${r.desc}</p>
+    <p class="section-label">Types / variants</p>
+    <div class="tag-row">${r.types.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+    <p class="section-label">Example YAML</p>
+    <div class="yaml">${r.yaml}</div>
+    <button class="ask-btn" onclick="sendPrompt('${r.ask}')">${r.ask} ↗</button>
+  `;
+}
+
+resources.forEach((r, i) => {
+  const el = document.createElement('div');
+  el.className = 'card' + (i === 0 ? ' active' : '');
+  el.innerHTML = `<div class="card-icon"><i class="ti ${r.icon}" aria-hidden="true"></i></div><div class="card-title">${r.title}</div><div class="card-sub">${r.sub}</div>`;
+  el.onclick = () => render(i);
+  cardsEl.appendChild(el);
+});
+
+render(0);
+</script>
